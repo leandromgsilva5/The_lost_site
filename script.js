@@ -1,18 +1,37 @@
-// --- 1. LIGAR AO SERVIDOR SOCKET.IO ---
-// Se estiveres a testar localmente, usa 'http://localhost:3000' ou deixa vazio se o servidor servir os ficheiros estáticos.
+// --- VARIÁVEL GLOBAL DE ENCOMENDAS ---
+let orders = [];
+
+// --- 1. CARREGAR E GUARDAR NO LOCALSTORAGE ---
+function loadFromLocalStorage() {
+  const savedOrders = localStorage.getItem('sistema_encomendas');
+  if (savedOrders) {
+    try {
+      orders = JSON.parse(savedOrders);
+    } catch (e) {
+      console.error('Erro ao carregar o localStorage:', e);
+      orders = [];
+    }
+  }
+}
+
+function saveToLocalStorage() {
+  localStorage.setItem('sistema_encomendas', JSON.stringify(orders));
+}
+
+// --- 2. LIGAR AO SERVIDOR SOCKET.IO ---
 const socket = io('http://localhost:3000'); 
 
-// --- 2. OUVIR NOVAS ENCOMENDAS EM TEMPO REAL ---
+// --- 3. OUVIR NOVAS ENCOMENDAS EM TEMPO REAL ---
 socket.on('atualizar_encomendas', (newOrder) => {
-  console.holog ? console.log('Nova encomenda recebida em tempo real:', newOrder) : null;
-  
-  // Adiciona a encomenda à tua lista existente de encomendas global
-  if (typeof orders !== 'undefined') {
+  // Evita duplicados caso o ID já exista
+  if (!orders.some(o => o.id === newOrder.id)) {
     orders.unshift(newOrder);
     
-    // Funções nativas da tua aplicação para guardar e atualizar a interface
-    if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
-    if (typeof refreshAllViews === 'function') refreshAllViews();
+    // Guarda localmente e atualiza a interface
+    saveToLocalStorage();
+    if (typeof refreshAllViews === 'function') {
+      refreshAllViews();
+    }
   }
 
   // Alerta sonoro subtil para avisar o gerente
@@ -20,9 +39,7 @@ socket.on('atualizar_encomendas', (newOrder) => {
   
   // Mostrar badge/aviso visual no painel se existir
   const badge = document.getElementById('pending-validation-badge');
-  if (badge) {
-    badge.classList.remove('hidden');
-  }
+  badge?.classList.remove('hidden');
 });
 
 // Função auxiliar de som de notificação
@@ -36,13 +53,19 @@ function playAlertSound() {
   }
 }
 
-// --- 3. INTEGRAR NO TEU CHECKOUT ---
-// Na tua função onde processas o checkout e crias a encomenda (ex: handleCheckout), 
-// deves adicionar a linha do socket.emit logo após salvar localmente:
+// --- 4. INICIALIZAÇÃO AO CARREGAR A PÁGINA ---
+window.addEventListener('DOMContentLoaded', () => {
+  loadFromLocalStorage();
+  if (typeof refreshAllViews === 'function') {
+    refreshAllViews();
+  }
+});
 
+// --- 5. EXEMPLO DE USO NO SEU CHECKOUT ---
 /* 
-  EXEMPLO DE USO DENTRO DO TEU CHECKOUT:
-  
+  Quando o cliente finalizar a compra na sua função de checkout (ex: handleCheckout), 
+  certifique-se de incluir o 'socket.emit' desta forma:
+
   const order = {
     id: orderId,
     date: new Date().toLocaleString('pt-PT'),
@@ -55,7 +78,7 @@ function playAlertSound() {
 
   orders.unshift(order);
   
-  // ENVIA PARA O SERVIDOR EM TEMPO REAL
+  // ENVIA PARA O SERVIDOR EM TEMPO REAL PARA OS OUTROS DISPOSITIVOS
   socket.emit('nova_encomenda', order);
 
   saveToLocalStorage();
