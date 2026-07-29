@@ -11,26 +11,26 @@ const io = new Server(server, {
   }
 });
 
-// Servir ficheiros estáticos da pasta atual (onde tens o teu index.html)
+// Servir ficheiros estáticos (opcional, caso queiras colocar o HTML/JS na mesma pasta)
 app.use(express.static(__dirname));
 
 io.on('connection', (socket) => {
-  console.log('Novo cliente ligado:', socket.id);
+  console.log(`Novo cliente conectado: ${socket.id}`);
 
-  // Ouve quando uma nova encomenda é criada no checkout
-  socket.on('nova_encomenda', (newOrder) => {
-    console.log('Nova encomenda recebida no servidor:', newOrder.id);
+  // Recebe uma nova encomenda enviada por um cliente/vendedor
+  socket.on('nova_encomenda', (order) => {
+    console.log(`Nova encomenda gerada: ${order.id}`);
     
-    // Reencaminha imediatamente a encomenda para todos os outros clientes ligados (painéis abertos)
-    socket.broadcast.emit('atualizar_encomendas', newOrder);
+    // Transmite a nova encomenda instantaneamente para todos os outros clientes (ex: painel do gerente)
+    socket.broadcast.emit('atualizar_encomendas', order);
   });
 
   socket.on('disconnect', () => {
-    console.log('Cliente desconectado:', socket.id);
+    console.log(`Cliente desconectado: ${socket.id}`);
   });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Servidor a correr na porta ${PORT}`);
+  console.log(`Servidor de tempo real a correr na porta ${PORT}`);
 });
