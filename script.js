@@ -23,21 +23,17 @@ const socket = io();
 
 // --- 3. OUVIR NOVAS ENCOMENDAS EM TEMPO REAL ---
 socket.on('atualizar_encomendas', (newOrder) => {
-  // Evita duplicados caso o ID já exista
   if (!orders.some(o => o.id === newOrder.id)) {
     orders.unshift(newOrder);
-    
-    // Guarda localmente e atualiza a interface
     saveToLocalStorage();
+    
     if (typeof refreshAllViews === 'function') {
       refreshAllViews();
     }
   }
 
-  // Alerta sonoro subtil para avisar o gerente
   playAlertSound();
   
-  // Mostrar badge/aviso visual no painel se existir
   const badge = document.getElementById('pending-validation-badge');
   badge?.classList.remove('hidden');
 });
@@ -53,34 +49,8 @@ function playAlertSound() {
   }
 }
 
-// --- 4. INICIALIZAÇÃO AO CARREGAR A PÁGINA ---
+// --- 4. INICIALIZAÇÃO ÚNICA AO CARREGAR A PÁGINA ---
 window.addEventListener('DOMContentLoaded', () => {
   loadFromLocalStorage();
-  if (typeof refreshAllViews === 'function') {
-    refreshAllViews();
-  }
+  // Nota: Não chamamos load dentro de refreshAllViews para evitar loops
 });
-
-// --- 5. EXEMPLO DE USO NO SEU CHECKOUT ---
-/* 
-  Quando o cliente finalizar a compra na sua função de checkout (ex: handleCheckout), 
-  certifique-se de incluir o 'socket.emit' desta forma:
-
-  const order = {
-    id: orderId,
-    date: new Date().toLocaleString('pt-PT'),
-    client: client,
-    seller: seller,
-    items: cartItems,
-    total: total,
-    status: 'Pendente'
-  };
-
-  orders.unshift(order);
-  
-  // ENVIA PARA O SERVIDOR EM TEMPO REAL PARA OS OUTROS DISPOSITIVOS
-  socket.emit('nova_encomenda', order);
-
-  saveToLocalStorage();
-  refreshAllViews();
-*/
