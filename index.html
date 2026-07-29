@@ -1743,25 +1743,43 @@
             <div>
               <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-neutral-950 text-gray-400 border border-neutral-800">${p.cat}</span>
               <h3 class="font-bold text-white text-base mt-2">${p.name}</h3>
-              <p class="text-xs text-gray-400 mt-1">Stock no Baú: <strong class="${p.stock < p.min ? 'text-orange-400' : 'text-emerald-400'}">${p.stock} un.</strong></p>
+              <p class="text-xs text-gray-400 mt-1">Stock no Baú: <span class="font-bold ${p.stock < p.min ? 'text-orange-400' : 'text-emerald-400'}">${p.stock} un.</span></p>
             </div>
-            <div class="mt-4 pt-3 border-t border-neutral-800/60 flex items-center justify-between">
-              <span class="text-lg font-black text-orange-400">$${price.toLocaleString()}</span>
-              <button onclick="addToCart('${p.id}')" class="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded font-bold text-xs flex items-center gap-1 transition">
-                <i class="fa-solid fa-plus"></i> Adicionar
-              </button>
+            <div class="mt-4 pt-3 border-t border-neutral-800 flex items-center justify-between">
+              <span class="text-base font-black text-orange-400">$${price.toLocaleString()}</span>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="qty-${p.id}" value="1" min="1" max="${p.stock}" class="w-14 bg-neutral-950 border border-neutral-700 text-center text-xs py-1 rounded text-white font-bold">
+                <button onclick="addToCart('${p.id}')" class="px-2.5 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded font-bold text-xs transition flex items-center gap-1">
+                  <i class="fa-solid fa-cart-plus"></i>
+                </button>
+              </div>
             </div>
           </div>
         `;
       }).join('');
     }
 
-    function addToCart(id) {
-      const item = cart.find(i => i.id === id);
-      const prod = products.find(p => p.id === id);
-      if(item) { if(item.qty < prod.stock) item.qty++; else alert('Atingiu o stock limite disponível!'); }
-      else { if(prod.stock > 0) cart.push({ id: id, qty: 1 }); else alert('Item sem stock no baú!'); }
+    function addToCart(productId) {
+      const prod = products.find(p => p.id === productId);
+      const qtyInput = document.getElementById('qty-' + productId);
+      const qty = parseInt(qtyInput ? qtyInput.value : 1);
+
+      if (!prod || qty <= 0) return;
+      if (qty > prod.stock) {
+        alert('Quantidade superior ao stock disponível no baú!');
+        return;
+      }
+
+      const existing = cart.find(item => item.id === productId && !item.isCustomPack);
+      if (existing) {
+        existing.qty += qty;
+      } else {
+        cart.push({ id: prod.id, name: prod.name, price: getPrice(prod), qty: qty, isCustomPack: false });
+      }
+
+      updateCartBadge();
       renderCart();
+      alert(`Adicionado ${qty}x ${prod.name} ao carrinho!`);
     }
 
     function addWeaponKitToCart(kitName) {
@@ -1769,131 +1787,150 @@
       if (kitName.includes('Kit 06')) basePrice = 22500;
       if (kitName.includes('Kit 07') || kitName.includes('Kit 08')) basePrice = 37500;
 
-      const existing = cart.find(i => i.id === kitName);
-      if(existing) existing.qty++;
-      else cart.push({ id: kitName, name: kitName, price: basePrice, qty: 1, isCustomPack: true });
+      if (appliedDiscount) {
+        if (kitName.includes('Kit 06')) basePrice = 15000;
+        else if (kitName.includes('Kit 07') || kitName.includes('Kit 08')) basePrice = 20000;
+        else basePrice = 10000;
+      }
+
+      const existing = cart.find(item => item.name === kitName && item.isCustomPack);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        cart.push({ id: 'KIT-' + Math.floor(Math.random()*1000), name: kitName, price: basePrice, qty: 1, isCustomPack: true });
+      }
+
+      updateCartBadge();
       renderCart();
-      alert(`"${kitName}" adicionado ao carrinho!`);
+      alert(`Kit "${kitName}" adicionado ao carrinho com sucesso!`);
     }
 
-    function updateQty(id, delta) {
-      const item = cart.find(i => i.id === id);
-      if(!item) return;
-
-      if(item.isCustomPack) {
-        item.qty += delta;
-        if(item.qty <= 0) cart = cart.filter(i => i.id !== id);
+    function updateCartBadge() {
+      const badge = document.getElementById('cart-badge-count');
+      const totalItems = cart.reduce((sum, i) => sum + i.qty, 0);
+      if (totalItems > 0) {
+        badge.innerText = totalItems;
+        badge.classList.remove('hidden');
       } else {
-        const prod = products.find(p => p.id === id);
-        item.qty += delta; 
-        if(item.qty > prod.stock) { item.qty = prod.stock; alert('Quantidade máxima de stock atingida!'); }
-        if(item.qty <= 0) cart = cart.filter(i => i.id !== id);
+        badge.classList.add('hidden');
       }
-      renderCart();
     }
 
     function renderCart() {
       const tbody = document.getElementById('cart-table-body');
+      const totalValEl = document.getElementById('cart-total-val');
       if (!tbody) return;
-      let total = 0, count = 0;
-      tbody.innerHTML = cart.map(item => {
-        let name, price, subtotal;
-        if(item.isCustomPack) {
-          name = item.name;
-          price = getPrice(item);
-          subtotal = price * item.qty;
-        } else {
-          const prod = products.find(p => p.id === item.id);
-          name = prod.name;
-          price = getPrice(prod);
-          subtotal = price * item.qty;
-        }
-        total += subtotal; count += item.qty;
+
+      if (cart.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-500">O seu carrinho está vazio.</td></tr>`;
+        totalValEl.innerText = '0';
+        return;
+      }
+
+      let totalVal = 0;
+      tbody.innerHTML = cart.map((item, index) => {
+        const itemPrice = getPrice(item);
+        const subtotal = itemPrice * item.qty;
+        totalVal += subtotal;
+
         return `
-          <tr>
-            <td class="p-4 font-bold text-white">${name} ${item.isCustomPack ? '<span class="text-[10px] bg-orange-950 text-orange-400 px-1.5 py-0.5 rounded border border-orange-800 ml-1">Kit</span>' : ''}</td>
-            <td class="p-4">$${price.toLocaleString()}</td>
+          <tr class="hover:bg-neutral-950/40 transition">
+            <td class="p-4 font-bold text-white">${item.name}</td>
+            <td class="p-4 text-gray-400">$${itemPrice.toLocaleString()}</td>
             <td class="p-4 text-center">
-              <button onclick="updateQty('${item.id}', -1)" class="px-2 py-0.5 bg-neutral-800 rounded font-bold">-</button>
-              <span class="mx-2 font-bold">${item.qty}</span>
-              <button onclick="updateQty('${item.id}', 1)" class="px-2 py-0.5 bg-neutral-800 rounded font-bold">+</button>
+              <input type="number" min="1" value="${item.qty}" onchange="updateCartQty(${index}, this.value)" class="w-16 bg-neutral-950 border border-neutral-700 text-center text-xs py-1 rounded text-white font-bold">
             </td>
-            <td class="p-4 font-bold text-orange-400">$${subtotal.toLocaleString()}</td>
-            <td class="p-4 text-center"><button onclick="updateQty('${item.id}', -999)" class="text-orange-500 hover:text-orange-400"><i class="fa-solid fa-trash"></i></button></td>
+            <td class="p-4 font-black text-orange-400">$${subtotal.toLocaleString()}</td>
+            <td class="p-4 text-center">
+              <button onclick="removeFromCart(${index})" class="text-orange-500 hover:text-orange-400 transition" title="Remover"><i class="fa-solid fa-trash"></i></button>
+            </td>
           </tr>
         `;
       }).join('');
 
-      if(cart.length === 0) tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-500">Carrinho vazio. Adicione itens do Catálogo ou Kits de Armas.</td></tr>`;
-      document.getElementById('cart-total-val').innerText = total.toLocaleString();
-      const badge = document.getElementById('cart-badge-count');
-      if(count > 0) { badge.innerText = count; badge.classList.remove('hidden'); } else { badge.classList.add('hidden'); }
+      totalValEl.innerText = totalVal.toLocaleString();
+    }
+
+    function updateCartQty(index, newQty) {
+      const qty = parseInt(newQty);
+      if (qty <= 0) {
+        removeFromCart(index);
+        return;
+      }
+      cart[index].qty = qty;
+      renderCart();
+      updateCartBadge();
+    }
+
+    function removeFromCart(index) {
+      cart.splice(index, 1);
+      renderCart();
+      updateCartBadge();
     }
 
     function handleCheckout(e) {
       e.preventDefault();
-      if(cart.length === 0) return alert('Carrinho vazio!');
-      
-      for(let item of cart) {
-        if(!item.isCustomPack) {
-          const prod = products.find(p => p.id === item.id);
-          if(prod.stock < item.qty) {
-            alert(`Stock insuficiente para o item ${prod.name}! Stock atual: ${prod.stock}`);
-            return;
-          }
-        }
+      if (cart.length === 0) {
+        alert('O carrinho está vazio!');
+        return;
       }
 
       const clientName = document.getElementById('client-name').value.trim();
       const sellerName = document.getElementById('seller-name').value;
       const paymentStatus = document.getElementById('payment-status').value;
 
-      let orderItems = cart.map(item => {
-        if(item.isCustomPack) {
-          return { name: item.name, qty: item.qty, price: getPrice(item) };
-        } else {
+      // Verificar se há stock suficiente antes de fechar a venda
+      for (let item of cart) {
+        if (!item.isCustomPack) {
           const prod = products.find(p => p.id === item.id);
-          prod.stock -= item.qty;
-          return { name: prod.name, qty: item.qty, price: getPrice(prod) };
+          if (prod && prod.stock < item.qty) {
+            alert(`Stock insuficiente no baú para o item "${prod.name}"! Stock atual: ${prod.stock}`);
+            return;
+          }
+        }
+      }
+
+      // Descontar do stock
+      cart.forEach(item => {
+        if (!item.isCustomPack) {
+          const prod = products.find(p => p.id === item.id);
+          if (prod) prod.stock -= item.qty;
         }
       });
 
-      let totalVal = orderItems.reduce((acc, curr) => acc + (curr.price * curr.qty), 0);
-      let orderId = 'ENC-' + Math.floor(100000 + Math.random() * 900000);
-      let nowStr = new Date().toLocaleString('pt-PT');
+      let totalVal = cart.reduce((sum, i) => sum + (getPrice(i) * i.qty), 0);
 
-      let newOrder = {
-        id: orderId,
-        date: nowStr,
+      const newOrder = {
+        id: 'ENC-' + Math.floor(100000 + Math.random() * 900000),
+        date: new Date().toLocaleString('pt-PT'),
         client: clientName,
         seller: sellerName,
-        isPartnership: isPartnership,
-        items: orderItems,
+        isPartnership: isPartnership || (appliedDiscount !== null),
+        items: cart.map(i => ({ name: i.name, qty: i.qty, price: getPrice(i) })),
         total: totalVal,
-        status: paymentStatus
+        status: paymentStatus === 'Pago' ? 'Pago' : 'Pendente'
       };
 
       orders.unshift(newOrder);
       saveToLocalStorage();
 
-      // Se pago, registar entrada na tesouraria
-      if(paymentStatus === 'Pago') {
+      // Se foi pago na hora, registar na tesouraria automaticamente
+      if (paymentStatus === 'Pago') {
         treasuryTransactions.unshift({
           id: 'TR-' + Math.floor(1000 + Math.random() * 9000),
-          date: nowStr,
+          date: new Date().toLocaleString('pt-PT'),
           type: 'Entrada',
-          desc: `Venda ${orderId} (${clientName})`,
+          desc: `Venda Reg. ${newOrder.id} (${clientName})`,
           author: sellerName.split(' ')[0],
           amount: totalVal
         });
-        saveToLocalStorage();
       }
 
       showReceipt(newOrder);
       cart = [];
-      renderCart();
-      renderProducts();
+      updateCartBadge();
       refreshAllViews();
+      document.getElementById('checkout-form').reset();
     }
 
     function showReceipt(order) {
@@ -1901,12 +1938,12 @@
       document.getElementById('r-date').innerText = order.date;
       document.getElementById('r-client').innerText = order.client;
       document.getElementById('r-seller').innerText = order.seller;
-      document.getElementById('r-type').innerText = order.isPartnership ? '⭐ Parceria' : 'Normal';
+      document.getElementById('r-type').innerText = order.isPartnership ? 'Parceria / Desconto' : 'Normal';
       document.getElementById('r-status').innerText = order.status;
       document.getElementById('r-total').innerText = order.total.toLocaleString();
 
-      const listEl = document.getElementById('r-items-list');
-      listEl.innerHTML = order.items.map(i => `
+      const itemsList = document.getElementById('r-items-list');
+      itemsList.innerHTML = order.items.map(i => `
         <div class="flex justify-between">
           <span>${i.qty}x ${i.name}</span>
           <span>$${(i.price * i.qty).toLocaleString()}</span>
@@ -1918,15 +1955,170 @@
 
     function closeReceipt() {
       document.getElementById('receipt-modal').classList.add('hidden');
-      switchTab('validar');
+      switchTab('catalogo');
+    }
+
+    function renderStock() {
+      const tbody = document.getElementById('stock-table-body');
+      if (!tbody) return;
+
+      tbody.innerHTML = products.map(p => `
+        <tr class="hover:bg-neutral-950/40 transition">
+          <td class="p-3 font-mono text-gray-400">${p.id}</td>
+          <td class="p-3 font-bold text-white">${p.name}</td>
+          <td class="p-3 font-black ${p.stock < p.min ? 'text-orange-400' : 'text-emerald-400'}">${p.stock} un.</td>
+          <td class="p-3 text-gray-400">${p.min} un.</td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 text-[10px] rounded font-bold ${p.stock < p.min ? 'bg-orange-950 text-orange-400 border border-orange-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}">
+              ${p.stock < p.min ? '🔴 Baixo' : '🟢 Normal'}
+            </span>
+          </td>
+          <td class="p-3 text-center">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="adjustStock('${p.id}', -5)" class="px-2 py-0.5 bg-neutral-800 text-orange-400 rounded font-bold">-5</button>
+              <button onclick="adjustStock('${p.id}', 10)" class="px-2 py-0.5 bg-neutral-800 text-emerald-400 rounded font-bold">+10</button>
+              <button onclick="adjustStock('${p.id}', 50)" class="px-2 py-0.5 bg-neutral-800 text-emerald-400 rounded font-bold">+50</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function adjustStock(productId, amount) {
+      const prod = products.find(p => p.id === productId);
+      if (!prod) return;
+      prod.stock += amount;
+      if (prod.stock < 0) prod.stock = 0;
+      saveToLocalStorage();
+      renderStock();
+      renderProducts();
+      renderMemberStockView();
+      updateDashboard();
+    }
+
+    function updateDashboard() {
+      let totalFat = 0;
+      let totalPago = 0;
+      let totalPendente = 0;
+      let stockAlerts = 0;
+
+      orders.forEach(o => {
+        if (o.status !== 'Anulado') {
+          totalFat += o.total;
+          if (o.status === 'Pago' || o.status === 'Concluído') {
+            totalPago += o.total;
+          } else {
+            totalPendente += o.total;
+          }
+        }
+      });
+
+      products.forEach(p => {
+        if (p.stock < p.min) stockAlerts++;
+      });
+
+      const fatEl = document.getElementById('dash-total-fat');
+      const pagoEl = document.getElementById('dash-total-pago');
+      const pendEl = document.getElementById('dash-total-pendente');
+      const alertEl = document.getElementById('dash-stock-alert');
+
+      if (fatEl) fatEl.innerText = '$' + totalFat.toLocaleString();
+      if (pagoEl) pagoEl.innerText = '$' + totalPago.toLocaleString();
+      if (pendEl) pendEl.innerText = '$' + totalPendente.toLocaleString();
+      if (alertEl) alertEl.innerText = stockAlerts + ' Itens';
+    }
+
+    function renderRanking() {
+      const tbody = document.getElementById('ranking-table-body');
+      if (!tbody) return;
+
+      let clientMap = {};
+      orders.forEach(o => {
+        if (o.status !== 'Anulado') {
+          if (!clientMap[o.client]) {
+            clientMap[o.client] = { ordersCount: 0, totalSpent: 0 };
+          }
+          clientMap[o.client].ordersCount += 1;
+          clientMap[o.client].totalSpent += o.total;
+        }
+      });
+
+      let sortedClients = Object.keys(clientMap).map(client => ({
+        name: client,
+        ordersCount: clientMap[client].ordersCount,
+        totalSpent: clientMap[client].totalSpent
+      })).sort((a, b) => b.totalSpent - a.totalSpent);
+
+      if (sortedClients.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-500">Nenhum dado de ranking disponível.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = sortedClients.map((c, index) => {
+        let medal = `#${index + 1}`;
+        if (index === 0) medal = '🥇 1º';
+        if (index === 1) medal = '🥈 2º';
+        if (index === 2) medal = '🥉 3º';
+
+        return `
+          <tr class="hover:bg-neutral-950/40 transition">
+            <td class="p-4 text-center font-bold text-amber-400">${medal}</td>
+            <td class="p-4 font-bold text-white">${c.name}</td>
+            <td class="p-4 text-center text-gray-300">${c.ordersCount} pedidos</td>
+            <td class="p-4 font-black text-orange-400">$${c.totalSpent.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderSellersRanking() {
+      const tbody = document.getElementById('ranking-sellers-table-body');
+      if (!tbody) return;
+
+      let sellerMap = {};
+      orders.forEach(o => {
+        if (o.status !== 'Anulado') {
+          let cleanSeller = o.seller.split('(')[0].trim();
+          if (!sellerMap[cleanSeller]) {
+            sellerMap[cleanSeller] = { salesCount: 0, totalEarned: 0 };
+          }
+          sellerMap[cleanSeller].salesCount += 1;
+          sellerMap[cleanSeller].totalEarned += o.total;
+        }
+      });
+
+      let sortedSellers = Object.keys(sellerMap).map(seller => ({
+        name: seller,
+        salesCount: sellerMap[seller].salesCount,
+        totalEarned: sellerMap[seller].totalEarned
+      })).sort((a, b) => b.totalEarned - a.totalEarned);
+
+      if (sortedSellers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-500">Nenhum dado de vendedores disponível.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = sortedSellers.map((s, index) => {
+        let medal = `#${index + 1}`;
+        if (index === 0) medal = '🥇 1º';
+        if (index === 1) medal = '🥈 2º';
+        if (index === 2) medal = '🥉 3º';
+
+        return `
+          <tr class="hover:bg-neutral-950/40 transition">
+            <td class="p-4 text-center font-bold text-amber-400">${medal}</td>
+            <td class="p-4 font-bold text-white">${s.name}</td>
+            <td class="p-4 text-center text-gray-300">${s.salesCount} vendas</td>
+            <td class="p-4 font-black text-orange-400">$${s.totalEarned.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
     }
 
     function renderMemberOrders() {
       const tbody = document.getElementById('member-orders-tbody');
       const searchInput = document.getElementById('member-order-search');
-      if(!tbody) return;
-
-      loadFromLocalStorage();
+      if (!tbody) return;
 
       let query = searchInput ? searchInput.value.toLowerCase() : '';
       let filteredOrders = orders.filter(o => 
@@ -1935,8 +2127,8 @@
         o.seller.toLowerCase().includes(query)
       );
 
-      if(filteredOrders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-500">Nenhuma encomenda registada.</td></tr>`;
+      if (filteredOrders.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-500">Nenhuma encomenda encontrada.</td></tr>`;
         return;
       }
 
@@ -1954,131 +2146,8 @@
             <td class="p-3 font-bold text-white">${o.client}</td>
             <td class="p-3 text-gray-300">${o.seller}</td>
             <td class="p-3 text-gray-400 truncate max-w-xs" title="${itemsSummary}">${itemsSummary}</td>
-            <td class="p-3 font-black text-amber-400">$${o.total.toLocaleString()}</td>
+            <td class="p-3 font-black text-orange-400">$${o.total.toLocaleString()}</td>
             <td class="p-3"><span class="px-2 py-0.5 text-[10px] rounded font-bold ${badgeClass}">${o.status}</span></td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function renderStock() {
-      const tbody = document.getElementById('stock-table-body');
-      if(!tbody) return;
-      tbody.innerHTML = products.map((p, index) => `
-        <tr class="hover:bg-neutral-950/40 transition">
-          <td class="p-3 font-mono text-gray-400">${p.id}</td>
-          <td class="p-3 font-bold text-white">${p.name}</td>
-          <td class="p-3 font-black ${p.stock < p.min ? 'text-orange-400' : 'text-emerald-400'}">${p.stock} un.</td>
-          <td class="p-3 text-gray-400">${p.min} un.</td>
-          <td class="p-3">
-            <span class="px-2 py-0.5 text-[10px] rounded font-bold ${p.stock < p.min ? 'bg-orange-950 text-orange-400 border border-orange-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}">
-              ${p.stock < p.min ? '🔴 Baixo' : '🟢 Normal'}
-            </span>
-          </td>
-          <td class="p-3 text-center">
-            <div class="flex items-center justify-center gap-1">
-              <button onclick="adjustStock(${index}, -5)" class="px-2 py-1 bg-neutral-800 text-red-400 rounded text-xs font-bold">-5</button>
-              <button onclick="adjustStock(${index}, -1)" class="px-2 py-1 bg-neutral-800 text-red-400 rounded text-xs font-bold">-1</button>
-              <button onclick="adjustStock(${index}, 1)" class="px-2 py-1 bg-neutral-800 text-emerald-400 rounded text-xs font-bold">+1</button>
-              <button onclick="adjustStock(${index}, 10)" class="px-2 py-1 bg-neutral-800 text-emerald-400 rounded text-xs font-bold">+10</button>
-              <button onclick="adjustStock(${index}, 50)" class="px-2 py-1 bg-neutral-800 text-emerald-400 rounded text-xs font-bold">+50</button>
-            </div>
-          </td>
-        </tr>
-      `).join('');
-    }
-
-    function adjustStock(index, delta) {
-      products[index].stock += delta;
-      if(products[index].stock < 0) products[index].stock = 0;
-      saveToLocalStorage();
-      refreshAllViews();
-    }
-
-    function renderRanking() {
-      const tbody = document.getElementById('ranking-table-body');
-      if(!tbody) return;
-
-      let clientMap = {};
-      orders.forEach(o => {
-        if(o.status === 'Anulado') return;
-        if(!clientMap[o.client]) {
-          clientMap[o.client] = { count: 0, total: 0 };
-        }
-        clientMap[o.client].count += 1;
-        clientMap[o.client].total += o.total;
-      });
-
-      let sortedClients = Object.keys(clientMap).map(client => ({
-        client: client,
-        count: clientMap[client].count,
-        total: clientMap[client].total
-      })).sort((a, b) => b.total - a.total);
-
-      if(sortedClients.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-500">Sem dados suficientes para o ranking.</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = sortedClients.map((c, index) => {
-        let badgeBg = "bg-neutral-800 text-gray-300";
-        if(index === 0) badgeBg = "bg-amber-500 text-black font-black";
-        if(index === 1) badgeBg = "bg-gray-300 text-black font-black";
-        if(index === 2) badgeBg = "bg-amber-700 text-white font-black";
-
-        return `
-          <tr class="hover:bg-neutral-950/40 transition">
-            <td class="p-4 text-center">
-              <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs ${badgeBg}">${index + 1}º</span>
-            </td>
-            <td class="p-4 font-bold text-white text-base">${c.client}</td>
-            <td class="p-4 text-center font-medium">${c.count} pedido(s)</td>
-            <td class="p-4 font-black text-amber-400 text-base">$${c.total.toLocaleString()}</td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function renderSellersRanking() {
-      const tbody = document.getElementById('ranking-sellers-table-body');
-      if(!tbody) return;
-
-      let sellerMap = {};
-      orders.forEach(o => {
-        if(o.status === 'Anulado') return;
-        let cleanSeller = o.seller.split('(')[0].trim();
-        if(!sellerMap[cleanSeller]) {
-          sellerMap[cleanSeller] = { count: 0, total: 0 };
-        }
-        sellerMap[cleanSeller].count += 1;
-        sellerMap[cleanSeller].total += o.total;
-      });
-
-      let sortedSellers = Object.keys(sellerMap).map(seller => ({
-        seller: seller,
-        count: sellerMap[seller].count,
-        total: sellerMap[seller].total
-      })).sort((a, b) => b.total - a.total);
-
-      if(sortedSellers.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-500">Sem dados suficientes para o ranking de vendedores.</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = sortedSellers.map((s, index) => {
-        let badgeBg = "bg-neutral-800 text-gray-300";
-        if(index === 0) badgeBg = "bg-amber-500 text-black font-black";
-        if(index === 1) badgeBg = "bg-gray-300 text-black font-black";
-        if(index === 2) badgeBg = "bg-amber-700 text-white font-black";
-
-        return `
-          <tr class="hover:bg-neutral-950/40 transition">
-            <td class="p-4 text-center">
-              <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs ${badgeBg}">${index + 1}º</span>
-            </td>
-            <td class="p-4 font-bold text-white text-base">${s.seller}</td>
-            <td class="p-4 text-center font-medium">${s.count} venda(s)</td>
-            <td class="p-4 font-black text-amber-400 text-base">$${s.total.toLocaleString()}</td>
           </tr>
         `;
       }).join('');
@@ -2086,52 +2155,30 @@
 
     function renderTeam() {
       const tbody = document.getElementById('team-table-body');
-      if(!tbody) return;
+      if (!tbody) return;
 
       let sellerMap = {};
       orders.forEach(o => {
-        if(o.status === 'Anulado') return;
-        let cleanSeller = o.seller.split('(')[0].trim();
-        if(!sellerMap[cleanSeller]) {
-          sellerMap[cleanSeller] = { count: 0, total: 0 };
+        if (o.status !== 'Anulado') {
+          let cleanSeller = o.seller.split('(')[0].trim();
+          if (!sellerMap[cleanSeller]) sellerMap[cleanSeller] = 0;
+          sellerMap[cleanSeller] += o.total;
         }
-        sellerMap[cleanSeller].count += 1;
-        sellerMap[cleanSeller].total += o.total;
       });
 
       tbody.innerHTML = teamMembers.map(m => {
-        let data = sellerMap[m.name] || { count: 0, total: 0 };
-        let commission = data.total * 0.15;
+        let totalSales = sellerMap[m.name] || 0;
+        let commission = totalSales * 0.15;
+
         return `
           <tr class="hover:bg-neutral-950/40 transition">
             <td class="p-3 font-bold text-white">${m.name}</td>
             <td class="p-3 text-gray-400">${m.role}</td>
-            <td class="p-3">${data.count} vendas ($${data.total.toLocaleString()})</td>
+            <td class="p-3 font-black text-orange-400">$${totalSales.toLocaleString()}</td>
             <td class="p-3 font-black text-emerald-400">$${commission.toLocaleString()}</td>
           </tr>
         `;
       }).join('');
-    }
-
-    function updateDashboard() {
-      let totalFat = 0, totalPago = 0, totalPendente = 0, stockAlerts = 0;
-
-      orders.forEach(o => {
-        if(o.status !== 'Anulado') {
-          totalFat += o.total;
-          if(o.status === 'Pago') totalPago += o.total;
-          else totalPendente += o.total;
-        }
-      });
-
-      products.forEach(p => {
-        if(p.stock < p.min) stockAlerts++;
-      });
-
-      document.getElementById('dash-total-fat').innerText = '$' + totalFat.toLocaleString();
-      document.getElementById('dash-total-pago').innerText = '$' + totalPago.toLocaleString();
-      document.getElementById('dash-total-pendente').innerText = '$' + totalPendente.toLocaleString();
-      document.getElementById('dash-stock-alert').innerText = stockAlerts + ' Itens';
     }
   </script>
 </body>
