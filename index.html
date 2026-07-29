@@ -1256,8 +1256,8 @@
                   <option value="Pago" ${o.status === 'Pago' ? 'selected' : ''}>💵 Pago</option>
                   <option value="Anulado" ${o.status === 'Anulado' ? 'selected' : ''}>❌ Anulado</option>
                 </select>
-                <button onclick="cancelOrder('${o.id}')" class="px-2 py-1 bg-red-950 hover:bg-red-900 text-red-400 border border-red-800 rounded font-bold text-xs transition" title="Anular e Repor Stock">
-                  <i class="fa-solid fa-ban"></i>
+                <button onclick="cancelOrder('${o.id}')" class="px-2 py-1 bg-red-950 hover:bg-red-900 text-red-400 border border-red-800 rounded text-xs font-bold" title="Remover Encomenda">
+                  <i class="fa-solid fa-trash"></i>
                 </button>
               </div>
             </td>
@@ -1266,20 +1266,20 @@
       }).join('');
     }
 
+    function cancelOrder(orderId) {
+      if (confirm(`Tem certeza que deseja apagar a encomenda ${orderId}?`)) {
+        orders = orders.filter(o => o.id !== orderId);
+        saveToLocalStorage();
+        refreshAllViews();
+      }
+    }
+
+    // --- VALIDAÇÃO DE ENCOMENDAS (ABA VALIDAÇÃO) ---
     function renderValidationOrders() {
       const tbody = document.getElementById('validation-orders-tbody');
-      const badgeCount = document.getElementById('pending-validation-badge');
       if (!tbody) return;
 
       loadFromLocalStorage();
-
-      let pendingCount = orders.filter(o => o.status === 'Pendente' || o.status === 'Em Confecção').length;
-      if (pendingCount > 0) {
-        badgeCount.innerText = pendingCount;
-        badgeCount.classList.remove('hidden');
-      } else {
-        badgeCount.classList.add('hidden');
-      }
 
       if (orders.length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-gray-500">Nenhuma encomenda registada.</td></tr>`;
@@ -1306,8 +1306,8 @@
               <span class="px-2.5 py-1 text-[11px] rounded font-bold ${badgeClass}">${o.status}</span>
             </td>
             <td class="p-4 text-center">
-              <div class="flex items-center justify-center gap-1.5 flex-wrap">
-                <select onchange="updateOrderStatus('${o.id}', this.value)" class="bg-neutral-950 border border-neutral-700 text-xs text-white rounded px-2 py-1 focus:outline-none focus:border-amber-500 font-bold">
+              <div class="flex items-center justify-center gap-2">
+                <select onchange="updateOrderStatus('${o.id}', this.value)" class="bg-neutral-950 border border-neutral-700 text-xs text-white rounded px-2 py-1 font-bold">
                   <option value="Pendente" ${o.status === 'Pendente' ? 'selected' : ''}>🟠 Pendente</option>
                   <option value="Em Confecção" ${o.status === 'Em Confecção' ? 'selected' : ''}>🟡 Em Confecção</option>
                   <option value="Concluído" ${o.status === 'Concluído' ? 'selected' : ''}>🟢 Concluído</option>
@@ -1321,33 +1321,15 @@
       }).join('');
     }
 
-    function cancelOrder(orderId) {
-      const order = orders.find(o => o.id === orderId);
-      if (!order) return;
-      if (order.status === 'Anulado') {
-        alert('Esta encomenda já se encontra anulada!');
-        return;
-      }
-
-      if (confirm(`Tem certeza que deseja anular a encomenda ${orderId} (${order.client})? O stock dos itens será reposto.`)) {
-        order.items.forEach(item => {
-          const prod = products.find(p => p.name.toLowerCase() === item.name.toLowerCase());
-          if (prod) prod.stock += item.qty;
-        });
-
-        order.status = 'Anulado';
-        saveToLocalStorage();
-        refreshAllViews();
-        alert(`Encomenda ${orderId} anulada com sucesso e stock reposto!`);
-      }
-    }
-
+    // --- RENDERIZAR TABELA DE GESTÃO DE ENCOMENDAS (NO PAINEL DE GERÊNCIA) ---
     function renderGerenciaOrders() {
       const tbody = document.getElementById('gerencia-orders-tbody');
       if (!tbody) return;
 
+      loadFromLocalStorage();
+
       if (orders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Nenhuma encomenda registada.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-gray-500">Nenhuma encomenda registada.</td></tr>`;
         return;
       }
 
@@ -1366,17 +1348,15 @@
             <td class="p-3 font-black text-orange-400">$${o.total.toLocaleString()}</td>
             <td class="p-3 text-center"><span class="px-2 py-0.5 text-[10px] rounded font-bold ${badgeClass}">${o.status}</span></td>
             <td class="p-3 text-center">
-              <div class="flex items-center justify-center gap-2">
-                <select onchange="updateOrderStatus('${o.id}', this.value)" class="bg-neutral-950 border border-neutral-700 text-[11px] text-white rounded px-2 py-1 font-bold">
-                  <option value="Pendente" ${o.status === 'Pendente' ? 'selected' : ''}>🟠 Pendente</option>
-                  <option value="Em Confecção" ${o.status === 'Em Confecção' ? 'selected' : ''}>🟡 Em Confecção</option>
-                  <option value="Concluído" ${o.status === 'Concluído' ? 'selected' : ''}>🟢 Concluído</option>
-                  <option value="Pago" ${o.status === 'Pago' ? 'selected' : ''}>💵 Pago</option>
-                  <option value="Anulado" ${o.status === 'Anulado' ? 'selected' : ''}>❌ Anulado</option>
+              <div class="flex items-center justify-center gap-1.5">
+                <select onchange="updateOrderStatus('${o.id}', this.value)" class="bg-neutral-950 border border-neutral-700 text-xs text-white rounded px-2 py-0.5 font-bold">
+                  <option value="Pendente" ${o.status === 'Pendente' ? 'selected' : ''}>Pendente</option>
+                  <option value="Em Confecção" ${o.status === 'Em Confecção' ? 'selected' : ''}>Em Confecção</option>
+                  <option value="Concluído" ${o.status === 'Concluído' ? 'selected' : ''}>Concluído</option>
+                  <option value="Pago" ${o.status === 'Pago' ? 'selected' : ''}>Pago</option>
+                  <option value="Anulado" ${o.status === 'Anulado' ? 'selected' : ''}>Anulado</option>
                 </select>
-                <button onclick="cancelOrder('${o.id}')" class="px-2 py-1 bg-red-950 hover:bg-red-900 text-red-400 border border-red-800 rounded font-bold text-[11px] transition" title="Anular e Repor Stock">
-                  <i class="fa-solid fa-ban"></i>
-                </button>
+                <button onclick="cancelOrder('${o.id}')" class="px-2 py-0.5 bg-red-950 hover:bg-red-900 text-red-400 border border-red-800 rounded text-xs font-bold"><i class="fa-solid fa-trash"></i></button>
               </div>
             </td>
           </tr>
@@ -1384,117 +1364,50 @@
       }).join('');
     }
 
-    function addTreasuryTransaction(e) {
-      e.preventDefault();
-      const type = document.getElementById('t-type').value;
-      const desc = document.getElementById('t-desc').value.trim();
-      const amount = parseFloat(document.getElementById('t-amount').value);
-      const author = document.getElementById('t-author').value.trim();
-
-      if(isNaN(amount) || amount <= 0) {
-        alert('Insira um montante válido.');
-        return;
-      }
-
-      const newTx = {
-        id: 'TR-' + Math.floor(1000 + Math.random() * 9000),
-        date: new Date().toLocaleString('pt-PT'),
-        type: type,
-        desc: desc,
-        author: author,
-        amount: amount
-      };
-
-      treasuryTransactions.unshift(newTx);
-      document.getElementById('t-desc').value = '';
-      document.getElementById('t-amount').value = '';
-      saveToLocalStorage();
-      renderTreasury();
+    // --- CÓDIGOS DE DESCONTO ---
+    function togglePartnership() {
+      isPartnership = document.getElementById('partnership-toggle').checked;
+      renderProducts();
     }
 
-    function deleteTreasuryTransaction(id) {
-      if(confirm('Tem certeza que deseja apagar este registo do extrato?')) {
-        treasuryTransactions = treasuryTransactions.filter(t => t.id !== id);
-        saveToLocalStorage();
-        renderTreasury();
-      }
-    }
+    function applyDiscountCode() {
+      const codeInput = document.getElementById('discount-code').value.trim().toLowerCase();
+      const feedback = document.getElementById('discount-feedback');
 
-    function renderTreasury() {
-      const tbody = document.getElementById('treasury-table-body');
-      const balanceEl = document.getElementById('treasury-balance-display');
-      if(!tbody || !balanceEl) return;
-
-      let totalBalance = 0;
-
-      if(treasuryTransactions.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-500">Nenhum movimento registado na tesouraria.</td></tr>`;
+      const found = discountCodes.find(c => c.name === codeInput);
+      if (found) {
+        appliedDiscount = found;
+        feedback.innerText = `✅ Código "${codeInput.toUpperCase()}" aplicado com sucesso! Descontos ativos.`;
+        feedback.className = 'text-[11px] text-emerald-400 font-bold';
       } else {
-        tbody.innerHTML = treasuryTransactions.map(t => {
-          if(t.type === 'Entrada') {
-            totalBalance += t.amount;
-          } else {
-            totalBalance -= t.amount;
-          }
-
-          const isEntrada = t.type === 'Entrada';
-          return `
-            <tr class="hover:bg-neutral-950/40 transition">
-              <td class="p-3 font-mono text-gray-400">${t.date}</td>
-              <td class="p-3">
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isEntrada ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
-                  ${isEntrada ? '🟢 Entrada' : '🔴 Gasto'}
-                </span>
-              </td>
-              <td class="p-3 font-bold text-white">${t.desc}</td>
-              <td class="p-3 text-gray-300">${t.author}</td>
-              <td class="p-3 font-black ${isEntrada ? 'text-emerald-400' : 'text-red-400'}">
-                ${isEntrada ? '+' : '-'}$${t.amount.toLocaleString()}
-              </td>
-              <td class="p-3 text-center">
-                <button onclick="deleteTreasuryTransaction('${t.id}')" class="text-orange-500 hover:text-orange-400"><i class="fa-solid fa-trash"></i></button>
-              </td>
-            </tr>
-          `;
-        }).join('');
+        appliedDiscount = null;
+        feedback.innerText = `❌ Código inválido ou inexistente.`;
+        feedback.className = 'text-[11px] text-red-400 font-bold';
       }
-
-      balanceEl.innerText = '$' + totalBalance.toLocaleString();
-      balanceEl.className = totalBalance < 0 ? "text-2xl font-black text-red-400" : "text-2xl font-black text-emerald-400";
+      renderProducts();
     }
 
-    // --- GESTÃO DE CÓDIGOS DE DESCONTO ---
     function addNewDiscountCode(e) {
       e.preventDefault();
-      const codeName = document.getElementById('new-code-name').value.trim().toLowerCase();
-      const codeType = document.getElementById('new-code-type').value;
+      const name = document.getElementById('new-code-name').value.trim().toLowerCase();
+      const type = document.getElementById('new-code-type').value;
 
-      if (!codeName) return;
-
-      if (discountCodes.some(c => c.name === codeName)) {
+      if (discountCodes.some(c => c.name === name)) {
         alert('Este código já existe!');
         return;
       }
 
-      discountCodes.push({ name: codeName, type: codeType });
-      document.getElementById('new-code-name').value = '';
+      discountCodes.push({ name, type });
       saveToLocalStorage();
       renderDiscountCodesTable();
-      alert(`Código "${codeName.toUpperCase()}" criado com sucesso!`);
+      document.getElementById('new-code-name').value = '';
+      alert(`Código "${name.toUpperCase()}" criado com sucesso!`);
     }
 
-    function deleteDiscountCode(codeName) {
-      if (confirm(`Tem certeza que deseja apagar o código "${codeName.toUpperCase()}"?`)) {
-        discountCodes = discountCodes.filter(c => c.name !== codeName);
-        if (appliedDiscount === codeName) {
-          appliedDiscount = null;
-          document.getElementById('discount-feedback').innerText = '';
-        }
-        saveToLocalStorage();
-        renderDiscountCodesTable();
-        renderProducts();
-        renderCart();
-      }
+    function removeDiscountCode(index) {
+      discountCodes.splice(index, 1);
+      saveToLocalStorage();
+      renderDiscountCodesTable();
     }
 
     function renderDiscountCodesTable() {
@@ -1502,112 +1415,131 @@
       if (!tbody) return;
 
       if (discountCodes.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">Nenhum código de desconto registado.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">Nenhum código de desconto ativo.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = discountCodes.map(c => `
+      tbody.innerHTML = discountCodes.map((c, index) => `
         <tr class="hover:bg-neutral-950/40 transition">
           <td class="p-3 font-mono font-bold text-orange-400 uppercase">${c.name}</td>
-          <td class="p-3 text-gray-300">Desconto Especial / Preset Personalizado</td>
+          <td class="p-3 text-gray-300">Padrão Black Lion (Peças $5.000 / Kits Reduzidos)</td>
           <td class="p-3 text-center">
-            <button onclick="deleteDiscountCode('${c.name}')" class="text-red-400 hover:text-red-300"><i class="fa-solid fa-trash"></i></button>
+            <button onclick="removeDiscountCode(${index})" class="px-2 py-1 bg-red-950 hover:bg-red-900 text-red-400 rounded text-xs font-bold"><i class="fa-solid fa-trash"></i></button>
           </td>
         </tr>
       `).join('');
     }
 
-    // --- GESTÃO DE HIERARQUIAS (ADICIONAR / RETIRAR PESSOAS) ---
-    function renderHierarchies() {
-      const container = document.getElementById('hierarchy-cards-container');
-      if(!container) return;
-      hierarchies.sort((a, b) => a.level - b.level);
-      container.innerHTML = hierarchies.map((h, index) => {
-        const membersList = h.members && h.members.length > 0 
-          ? h.members.map((m, mIndex) => `
-              <span class="inline-flex items-center bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-white text-xs mr-1 mb-1 font-medium">
-                <i class="fa-solid fa-user text-orange-500 text-[10px] mr-1"></i>${m}
-                <button onclick="removeMemberFromHierarchy(${index}, ${mIndex})" class="ml-1.5 text-red-400 hover:text-red-300" title="Retirar pessoa"><i class="fa-solid fa-xmark"></i></button>
-              </span>`).join('') 
-          : '<span class="text-gray-500 italic text-xs">Sem membros atribuídos</span>';
-        
+    // --- TESOURARIA ---
+    function addTreasuryTransaction(e) {
+      e.preventDefault();
+      const type = document.getElementById('t-type').value;
+      const desc = document.getElementById('t-desc').value.trim();
+      const amount = parseFloat(document.getElementById('t-amount').value);
+      const author = document.getElementById('t-author').value.trim();
+
+      const newTr = {
+        id: 'TR-' + Math.floor(1000 + Math.random() * 9000),
+        date: new Date().toLocaleString('pt-PT'),
+        type,
+        desc,
+        author,
+        amount
+      };
+
+      treasuryTransactions.unshift(newTr);
+      saveToLocalStorage();
+      renderTreasury();
+      document.getElementById('t-desc').value = '';
+      document.getElementById('t-amount').value = '';
+      document.getElementById('t-author').value = '';
+      alert('Transação registada com sucesso na tesouraria!');
+    }
+
+    function removeTreasuryTransaction(index) {
+      treasuryTransactions.splice(index, 1);
+      saveToLocalStorage();
+      renderTreasury();
+    }
+
+    function renderTreasury() {
+      const tbody = document.getElementById('treasury-table-body');
+      const balanceEl = document.getElementById('treasury-balance-display');
+      if (!tbody) return;
+
+      let balance = 0;
+      treasuryTransactions.forEach(t => {
+        if (t.type === 'Entrada') balance += t.amount;
+        else balance -= t.amount;
+      });
+
+      if(balanceEl) {
+        balanceEl.innerText = '$' + balance.toLocaleString();
+        balanceEl.className = balance >= 0 ? 'text-2xl font-black text-emerald-400' : 'text-2xl font-black text-red-400';
+      }
+
+      if (treasuryTransactions.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-500">Sem registos na tesouraria.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = treasuryTransactions.map((t, index) => {
+        let typeBadge = t.type === 'Entrada' ? '<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">Entrada</span>' : '<span class="px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800 font-bold">Gasto / Saída</span>';
+        let amountColor = t.type === 'Entrada' ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold';
+
         return `
-          <div class="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between">
-            <div>
-              <div class="flex justify-between items-center mb-2">
-                <span class="text-xs px-2 py-0.5 rounded bg-orange-950 text-orange-400 border border-orange-800 font-bold">Nível ${h.level}</span>
-                <div class="flex gap-1.5">
-                  <button onclick="promptAddMember(${index})" class="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 text-[11px] font-bold rounded flex items-center gap-1" title="Adicionar Pessoa"><i class="fa-solid fa-user-plus"></i> Adicionar</button>
-                  <button onclick="editHierarchy(${index})" class="p-1 text-gray-400 hover:text-white text-xs" title="Editar Cargo"><i class="fa-solid fa-pen"></i></button>
-                  <button onclick="deleteHierarchy(${index})" class="p-1 text-orange-500 hover:text-orange-400 text-xs" title="Apagar Cargo"><i class="fa-solid fa-trash"></i></button>
-                </div>
-              </div>
-              <h4 class="font-bold text-white text-base mb-2">${h.name}</h4>
-              <div class="mb-3 flex flex-wrap gap-1">${membersList}</div>
-              <p class="text-xs text-gray-400">${h.desc || 'Sem descrição definida.'}</p>
-            </div>
-          </div>
+          <tr class="hover:bg-neutral-950/40 transition">
+            <td class="p-3 text-gray-400">${t.date}</td>
+            <td class="p-3">${typeBadge}</td>
+            <td class="p-3 font-bold text-white">${t.desc}</td>
+            <td class="p-3 text-gray-300">${t.author}</td>
+            <td class="p-3 ${amountColor}">$${t.amount.toLocaleString()}</td>
+            <td class="p-3 text-center">
+              <button onclick="removeTreasuryTransaction(${index})" class="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-red-400 rounded text-xs"><i class="fa-solid fa-trash"></i></button>
+            </td>
+          </tr>
         `;
       }).join('');
     }
 
-    function promptAddMember(hierarchyIndex) {
-      const personName = prompt(`Introduza o nome da pessoa a adicionar ao cargo de "${hierarchies[hierarchyIndex].name}":`);
-      if (personName && personName.trim() !== '') {
-        if (!hierarchies[hierarchyIndex].members) hierarchies[hierarchyIndex].members = [];
-        hierarchies[hierarchyIndex].members.push(personName.trim());
-        saveToLocalStorage();
-        refreshAllViews();
-        alert(`"${personName.trim()}" adicionado com sucesso!`);
-      }
-    }
+    // --- HIERARQUIAS ---
+    function renderHierarchies() {
+      const container = document.getElementById('hierarchy-cards-container');
+      if (!container) return;
 
-    function removeMemberFromHierarchy(hierarchyIndex, memberIndex) {
-      const memberName = hierarchies[hierarchyIndex].members[memberIndex];
-      if (confirm(`Tem certeza que deseja retirar "${memberName}" deste cargo?`)) {
-        hierarchies[hierarchyIndex].members.splice(memberIndex, 1);
-        saveToLocalStorage();
-        refreshAllViews();
-      }
+      container.innerHTML = hierarchies.map((h, index) => `
+        <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-black px-2 py-0.5 rounded bg-orange-950 text-orange-400 border border-orange-800">NÍVEL ${h.level}</span>
+              <div class="flex gap-1">
+                <button onclick="openEditHierarchyModal(${index})" class="text-gray-400 hover:text-white p-1"><i class="fa-solid fa-pen text-xs"></i></button>
+                <button onclick="deleteHierarchy(${index})" class="text-red-400 hover:text-red-300 p-1"><i class="fa-solid fa-trash text-xs"></i></button>
+              </div>
+            </div>
+            <h4 class="font-bold text-white text-base">${h.name}</h4>
+            <p class="text-xs text-gray-400 mt-1">${h.desc || ''}</p>
+            <div class="mt-3 pt-3 border-t border-neutral-800">
+              <span class="text-[11px] font-bold text-orange-400 uppercase block mb-1">Membros Atuais:</span>
+              <p class="text-xs text-gray-300 font-mono">${Array.isArray(h.members) ? h.members.join(', ') : h.members}</p>
+            </div>
+          </div>
+        </div>
+      `).join('');
     }
 
     function renderMemberHierarchy() {
       const container = document.getElementById('member-hierarchy-list');
-      if(!container) return;
-      hierarchies.sort((a, b) => a.level - b.level);
-      container.innerHTML = hierarchies.map(h => {
-        const membersList = h.members && h.members.length > 0 
-          ? h.members.map(m => `<span class="inline-block bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-white text-[11px] mr-1 mb-1 font-medium"><i class="fa-solid fa-user text-amber-400 text-[9px] mr-1"></i>${m}</span>`).join('') 
-          : '<span class="text-gray-500 italic text-xs">Nenhum</span>';
+      if (!container) return;
 
-        return `
-          <div class="bg-neutral-950 border border-neutral-800 p-3 rounded-lg">
-            <div class="flex justify-between items-center mb-1">
-              <span class="text-xs font-bold text-amber-400">${h.name}</span>
-              <span class="text-[10px] text-gray-500">Nível ${h.level}</span>
-            </div>
-            <div class="flex flex-wrap gap-1 mt-2">${membersList}</div>
+      container.innerHTML = hierarchies.map(h => `
+        <div class="bg-neutral-950 p-3 rounded border border-neutral-800">
+          <div class="flex justify-between items-center">
+            <span class="font-bold text-white text-xs">${h.name}</span>
+            <span class="text-[10px] text-orange-400 font-mono">Nível ${h.level}</span>
           </div>
-        `;
-      }).join('');
-    }
-
-    function renderMemberStockView() {
-      const tbody = document.getElementById('member-stock-table-body');
-      if(!tbody) return;
-
-      tbody.innerHTML = products.map(p => `
-        <tr class="hover:bg-neutral-950/40 transition">
-          <td class="p-3 font-mono text-gray-400">${p.id}</td>
-          <td class="p-3 font-bold text-white">${p.name}</td>
-          <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-neutral-950 text-gray-400 border border-neutral-800">${p.cat}</span></td>
-          <td class="p-3 font-black ${p.stock < p.min ? 'text-orange-400' : 'text-emerald-400'}">${p.stock} unidades</td>
-          <td class="p-3">
-            <span class="px-2 py-0.5 text-[10px] rounded font-bold ${p.stock < p.min ? 'bg-orange-950 text-orange-400 border border-orange-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}">
-              ${p.stock < p.min ? '🔴 Stock Baixo' : '🟢 Stock Normal'}
-            </span>
-          </td>
-        </tr>
+          <p class="text-xs text-gray-300 mt-1 font-mono">${Array.isArray(h.members) ? h.members.join(', ') : h.members}</p>
+        </div>
       `).join('');
     }
 
@@ -1621,14 +1553,14 @@
       document.getElementById('hierarchy-modal').classList.remove('hidden');
     }
 
-    function editHierarchy(index) {
+    function openEditHierarchyModal(index) {
       const h = hierarchies[index];
       document.getElementById('hierarchy-modal-title').innerText = 'Editar Cargo';
       document.getElementById('h-edit-index').value = index;
       document.getElementById('h-name').value = h.name;
       document.getElementById('h-level').value = h.level;
-      document.getElementById('h-members').value = h.members ? h.members.join(', ') : '';
-      document.getElementById('h-desc').value = h.desc;
+      document.getElementById('h-members').value = Array.isArray(h.members) ? h.members.join(', ') : h.members;
+      document.getElementById('h-desc').value = h.desc || '';
       document.getElementById('hierarchy-modal').classList.remove('hidden');
     }
 
@@ -1639,117 +1571,67 @@
     function saveHierarchy(e) {
       e.preventDefault();
       const index = parseInt(document.getElementById('h-edit-index').value);
-      const name = document.getElementById('h-name').value;
+      const name = document.getElementById('h-name').value.trim();
       const level = parseInt(document.getElementById('h-level').value);
-      const membersRaw = document.getElementById('h-members').value;
-      const members = membersRaw.split(/[\n,]+/).map(m => m.trim()).filter(m => m.length > 0);
-      const desc = document.getElementById('h-desc').value;
+      const membersRaw = document.getElementById('h-members').value.trim();
+      const members = membersRaw.split(',').map(m => m.trim()).filter(m => m);
+      const desc = document.getElementById('h-desc').value.trim();
 
-      if(index === -1) {
-        hierarchies.push({ name, level, members, desc });
+      const obj = { name, level, members, desc };
+
+      if (index === -1) {
+        hierarchies.push(obj);
       } else {
-        hierarchies[index] = { name, level, members, desc };
+        hierarchies[index] = obj;
       }
-      closeHierarchyModal();
+
       saveToLocalStorage();
-      refreshAllViews();
+      closeHierarchyModal();
+      renderHierarchies();
+      renderMemberHierarchy();
     }
 
     function deleteHierarchy(index) {
-      if(confirm('Tem certeza que deseja apagar este cargo?')) {
+      if (confirm('Tem certeza que deseja remover este cargo?')) {
         hierarchies.splice(index, 1);
         saveToLocalStorage();
-        refreshAllViews();
+        renderHierarchies();
+        renderMemberHierarchy();
       }
     }
 
-    function togglePartnership() {
-      isPartnership = document.getElementById('partnership-toggle').checked;
-      renderProducts(); renderCart();
-    }
-
-    function getPrice(itemObj) {
-      let name = itemObj.name || "";
-      let isColete = name.toLowerCase().includes("colete");
-      let isKit = itemObj.isCustomPack || name.toLowerCase().includes("kit");
-
-      if (appliedDiscount) {
-        if (isColete) return 20000;
-        else if (isKit) {
-          if (name.includes('Kit 01') || name.includes('Kit 02') || name.includes('Kit 03') || name.includes('Kit 04') || name.includes('Kit 05')) return 10000;
-          if (name.includes('Kit 06')) return 15000;
-          if (name.includes('Kit 07') || name.includes('Kit 08')) return 20000;
-          return 10000;
-        } else return 5000;
-      }
-
-      if (itemObj.isCustomPack) return itemObj.price;
-      return isPartnership ? itemObj.pPartner : itemObj.pNormal;
-    }
-
-    function applyDiscountCode() {
-      const codeVal = document.getElementById('discount-code').value.trim().toLowerCase();
-      const feedback = document.getElementById('discount-feedback');
-
-      const foundCode = discountCodes.find(c => c.name === codeVal);
-
-      if (foundCode) {
-        appliedDiscount = foundCode.name;
-        feedback.style.color = '#34d399';
-        feedback.innerHTML = `<i class="fa-solid fa-circle-check"></i> Código "${foundCode.name.toUpperCase()}" aplicado!`;
-        updateKitPricesDisplay();
-      } else if (codeVal === '') {
-        appliedDiscount = null;
-        feedback.style.color = '#9ca3af';
-        feedback.innerHTML = 'Nenhum código aplicado.';
-        updateKitPricesDisplay();
-      } else {
-        appliedDiscount = null;
-        feedback.style.color = '#f87171';
-        feedback.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Código inválido.';
-        updateKitPricesDisplay();
-      }
-      renderProducts();
-      renderCart();
-    }
-
-    function updateKitPricesDisplay() {
-      const kitCards = document.querySelectorAll('#weapon-kits-grid > div');
-      kitCards.forEach(card => {
-        const priceSpan = card.querySelector('.kit-price-display');
-        if (!priceSpan) return;
-        const basePrice = parseInt(card.getAttribute('data-kit-base'));
-        const codePrice = parseInt(card.getAttribute('data-kit-code'));
-
-        if (appliedDiscount) {
-          priceSpan.innerText = '$' + codePrice.toLocaleString();
-          priceSpan.classList.add('text-emerald-400');
-          priceSpan.classList.remove('text-orange-400');
-        } else {
-          priceSpan.innerText = '$' + basePrice.toLocaleString();
-          priceSpan.classList.remove('text-emerald-400');
-          priceSpan.classList.add('text-orange-400');
-        }
-      });
+    // --- PRODUTOS E CATÁLOGO ---
+    function getPrice(prod) {
+      if (appliedDiscount) return 5000;
+      return isPartnership ? prod.pPartner : prod.pNormal;
     }
 
     function renderProducts() {
       const grid = document.getElementById('product-grid');
       if (!grid) return;
-      grid.innerHTML = products.map(p => {
-        const price = getPrice(p);
+
+      grid.innerHTML = products.map(prod => {
+        let price = getPrice(prod);
+        let stockBadge = prod.stock < prod.min ? '<span class="text-[10px] px-2 py-0.5 rounded bg-orange-950 text-orange-400 border border-orange-800 font-bold">Stock Baixo</span>' : '<span class="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">Em Stock</span>';
+
         return `
-          <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between hover:border-neutral-700 transition">
+          <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between transition hover:border-orange-600/50">
             <div>
-              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-neutral-950 text-gray-400 border border-neutral-800">${p.cat}</span>
-              <h3 class="font-bold text-white text-base mt-2">${p.name}</h3>
-              <p class="text-xs text-gray-400 mt-1">Stock no Baú: <span class="font-bold ${p.stock < p.min ? 'text-orange-400' : 'text-emerald-400'}">${p.stock} un.</span></p>
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-mono text-gray-400">${prod.id}</span>
+                ${stockBadge}
+              </div>
+              <h3 class="font-bold text-white text-base">${prod.name}</h3>
+              <p class="text-xs text-gray-400 mt-1">Categoria: ${prod.cat}</p>
             </div>
             <div class="mt-4 pt-3 border-t border-neutral-800 flex items-center justify-between">
-              <span class="text-base font-black text-orange-400">$${price.toLocaleString()}</span>
-              <div class="flex items-center gap-1.5">
-                <input type="number" id="qty-${p.id}" value="1" min="1" max="${p.stock}" class="w-14 bg-neutral-950 border border-neutral-700 text-center text-xs py-1 rounded text-white font-bold">
-                <button onclick="addToCart('${p.id}')" class="px-2.5 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded font-bold text-xs transition flex items-center gap-1">
+              <div>
+                <span class="text-xs text-gray-400 block">Preço Unitário:</span>
+                <span class="text-lg font-black text-orange-400">$${price.toLocaleString()}</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <input type="number" id="qty-${prod.id}" value="1" min="1" class="w-12 bg-neutral-950 border border-neutral-700 text-center text-xs py-1 rounded text-white font-bold">
+                <button onclick="addToCart('${prod.id}')" class="px-2.5 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded font-bold text-xs flex items-center gap-1 transition">
                   <i class="fa-solid fa-cart-plus"></i>
                 </button>
               </div>
@@ -1759,16 +1641,29 @@
       }).join('');
     }
 
+    function renderMemberStockView() {
+      const tbody = document.getElementById('member-stock-table-body');
+      if (!tbody) return;
+
+      tbody.innerHTML = products.map(p => `
+        <tr class="hover:bg-neutral-950/40 transition">
+          <td class="p-3 font-mono text-gray-400">${p.id}</td>
+          <td class="p-3 font-bold text-white">${p.name}</td>
+          <td class="p-3 text-gray-400">${p.cat}</td>
+          <td class="p-3 font-black ${p.stock < p.min ? 'text-orange-400' : 'text-emerald-400'}">${p.stock}</td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 text-[10px] rounded font-bold ${p.stock < p.min ? 'bg-orange-950 text-orange-400 border border-orange-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}">
+              ${p.stock < p.min ? '🔴 Baixo' : '🟢 Normal'}
+            </span>
+          </td>
+        </tr>
+      `).join('');
+    }
+
     function addToCart(productId) {
       const prod = products.find(p => p.id === productId);
       const qtyInput = document.getElementById('qty-' + productId);
-      const qty = parseInt(qtyInput ? qtyInput.value : 1);
-
-      if (!prod || qty <= 0) return;
-      if (qty > prod.stock) {
-        alert('Quantidade superior ao stock disponível no baú!');
-        return;
-      }
+      const qty = qtyInput ? parseInt(qtyInput.value) || 1 : 1;
 
       const existing = cart.find(item => item.id === productId && !item.isCustomPack);
       if (existing) {
@@ -1776,96 +1671,86 @@
       } else {
         cart.push({ id: prod.id, name: prod.name, price: getPrice(prod), qty: qty, isCustomPack: false });
       }
-
-      updateCartBadge();
       renderCart();
       alert(`Adicionado ${qty}x ${prod.name} ao carrinho!`);
     }
 
     function addWeaponKitToCart(kitName) {
       let basePrice = 15000;
-      if (kitName.includes('Kit 06')) basePrice = 22500;
-      if (kitName.includes('Kit 07') || kitName.includes('Kit 08')) basePrice = 37500;
+      let codePrice = 10000;
+      if (kitName.includes('Kit 06')) { basePrice = 22500; codePrice = 15000; }
+      if (kitName.includes('Kit 07') || kitName.includes('Kit 08')) { basePrice = 37500; codePrice = 20000; }
 
-      if (appliedDiscount) {
-        if (kitName.includes('Kit 06')) basePrice = 15000;
-        else if (kitName.includes('Kit 07') || kitName.includes('Kit 08')) basePrice = 20000;
-        else basePrice = 10000;
-      }
+      let finalPrice = appliedDiscount ? codePrice : (isPartnership ? codePrice : basePrice);
 
       const existing = cart.find(item => item.name === kitName && item.isCustomPack);
       if (existing) {
         existing.qty += 1;
       } else {
-        cart.push({ id: 'KIT-' + Math.floor(Math.random()*1000), name: kitName, price: basePrice, qty: 1, isCustomPack: true });
+        cart.push({ id: 'KIT-' + Math.floor(Math.random()*1000), name: kitName, price: finalPrice, qty: 1, isCustomPack: true });
       }
-
-      updateCartBadge();
       renderCart();
-      alert(`Kit "${kitName}" adicionado ao carrinho com sucesso!`);
-    }
-
-    function updateCartBadge() {
-      const badge = document.getElementById('cart-badge-count');
-      const totalItems = cart.reduce((sum, i) => sum + i.qty, 0);
-      if (totalItems > 0) {
-        badge.innerText = totalItems;
-        badge.classList.remove('hidden');
-      } else {
-        badge.classList.add('hidden');
-      }
+      alert(`Adicionado ${kitName} ao carrinho!`);
     }
 
     function renderCart() {
       const tbody = document.getElementById('cart-table-body');
+      const badgeCount = document.getElementById('cart-badge-count');
       const totalValEl = document.getElementById('cart-total-val');
       if (!tbody) return;
 
       if (cart.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-500">O seu carrinho está vazio.</td></tr>`;
-        totalValEl.innerText = '0';
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-500">O carrinho está vazio.</td></tr>`;
+        if(badgeCount) badgeCount.classList.add('hidden');
+        if(totalValEl) totalValEl.innerText = '0';
         return;
       }
 
-      let totalVal = 0;
+      let totalItems = 0;
+      let totalPrice = 0;
+
       tbody.innerHTML = cart.map((item, index) => {
-        const itemPrice = getPrice(item);
-        const subtotal = itemPrice * item.qty;
-        totalVal += subtotal;
+        totalItems += item.qty;
+        let subtotal = item.price * item.qty;
+        totalPrice += subtotal;
 
         return `
           <tr class="hover:bg-neutral-950/40 transition">
             <td class="p-4 font-bold text-white">${item.name}</td>
-            <td class="p-4 text-gray-400">$${itemPrice.toLocaleString()}</td>
+            <td class="p-4 text-orange-400 font-bold">$${item.price.toLocaleString()}</td>
             <td class="p-4 text-center">
-              <input type="number" min="1" value="${item.qty}" onchange="updateCartQty(${index}, this.value)" class="w-16 bg-neutral-950 border border-neutral-700 text-center text-xs py-1 rounded text-white font-bold">
+              <input type="number" value="${item.qty}" min="1" onchange="updateCartQty(${index}, this.value)" class="w-16 bg-neutral-950 border border-neutral-700 text-center text-xs py-1 rounded text-white font-bold">
             </td>
-            <td class="p-4 font-black text-orange-400">$${subtotal.toLocaleString()}</td>
+            <td class="p-4 font-black text-white">$${subtotal.toLocaleString()}</td>
             <td class="p-4 text-center">
-              <button onclick="removeFromCart(${index})" class="text-orange-500 hover:text-orange-400 transition" title="Remover"><i class="fa-solid fa-trash"></i></button>
+              <button onclick="removeFromCart(${index})" class="text-red-400 hover:text-red-300"><i class="fa-solid fa-trash"></i></button>
             </td>
           </tr>
         `;
       }).join('');
 
-      totalValEl.innerText = totalVal.toLocaleString();
+      if(badgeCount) {
+        badgeCount.innerText = totalItems;
+        badgeCount.classList.remove('hidden');
+      }
+      if(totalValEl) {
+        totalValEl.innerText = totalPrice.toLocaleString();
+      }
     }
 
     function updateCartQty(index, newQty) {
-      const qty = parseInt(newQty);
+      let qty = parseInt(newQty);
       if (qty <= 0) {
         removeFromCart(index);
         return;
       }
       cart[index].qty = qty;
       renderCart();
-      updateCartBadge();
     }
 
     function removeFromCart(index) {
       cart.splice(index, 1);
       renderCart();
-      updateCartBadge();
     }
 
     function handleCheckout(e) {
@@ -1879,71 +1764,59 @@
       const sellerName = document.getElementById('seller-name').value;
       const paymentStatus = document.getElementById('payment-status').value;
 
-      // Verificar se há stock suficiente antes de fechar a venda
+      let total = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+
+      // Verificar stock e decrementar
       for (let item of cart) {
         if (!item.isCustomPack) {
           const prod = products.find(p => p.id === item.id);
-          if (prod && prod.stock < item.qty) {
-            alert(`Stock insuficiente no baú para o item "${prod.name}"! Stock atual: ${prod.stock}`);
-            return;
+          if (prod) {
+            if (prod.stock < item.qty) {
+              alert(`Stock insuficiente para o item: ${prod.name}. Stock atual: ${prod.stock}`);
+              return;
+            }
+            prod.stock -= item.qty;
           }
         }
       }
-
-      // Descontar do stock
-      cart.forEach(item => {
-        if (!item.isCustomPack) {
-          const prod = products.find(p => p.id === item.id);
-          if (prod) prod.stock -= item.qty;
-        }
-      });
-
-      let totalVal = cart.reduce((sum, i) => sum + (getPrice(i) * i.qty), 0);
 
       const newOrder = {
         id: 'ENC-' + Math.floor(100000 + Math.random() * 900000),
         date: new Date().toLocaleString('pt-PT'),
         client: clientName,
         seller: sellerName,
-        isPartnership: isPartnership || (appliedDiscount !== null),
-        items: cart.map(i => ({ name: i.name, qty: i.qty, price: getPrice(i) })),
-        total: totalVal,
+        isPartnership: isPartnership,
+        items: [...cart],
+        total: total,
         status: paymentStatus === 'Pago' ? 'Pago' : 'Pendente'
       };
 
       orders.unshift(newOrder);
-      saveToLocalStorage();
 
-      // Se foi pago na hora, registar na tesouraria automaticamente
+      // Se pago, registar na tesouraria automaticamente
       if (paymentStatus === 'Pago') {
         treasuryTransactions.unshift({
           id: 'TR-' + Math.floor(1000 + Math.random() * 9000),
           date: new Date().toLocaleString('pt-PT'),
           type: 'Entrada',
-          desc: `Venda Reg. ${newOrder.id} (${clientName})`,
+          desc: `Venda ${newOrder.id} (${clientName})`,
           author: sellerName.split(' ')[0],
-          amount: totalVal
+          amount: total
         });
       }
 
-      showReceipt(newOrder);
-      cart = [];
-      updateCartBadge();
-      refreshAllViews();
-      document.getElementById('checkout-form').reset();
-    }
+      saveToLocalStorage();
 
-    function showReceipt(order) {
-      document.getElementById('r-id').innerText = order.id;
-      document.getElementById('r-date').innerText = order.date;
-      document.getElementById('r-client').innerText = order.client;
-      document.getElementById('r-seller').innerText = order.seller;
-      document.getElementById('r-type').innerText = order.isPartnership ? 'Parceria / Desconto' : 'Normal';
-      document.getElementById('r-status').innerText = order.status;
-      document.getElementById('r-total').innerText = order.total.toLocaleString();
+      // Mostrar recibo
+      document.getElementById('r-id').innerText = newOrder.id;
+      document.getElementById('r-date').innerText = newOrder.date;
+      document.getElementById('r-client').innerText = newOrder.client;
+      document.getElementById('r-seller').innerText = newOrder.seller;
+      document.getElementById('r-type').innerText = isPartnership ? 'Parceria ⭐' : 'Normal';
+      document.getElementById('r-status').innerText = newOrder.status;
+      document.getElementById('r-total').innerText = total.toLocaleString();
 
-      const itemsList = document.getElementById('r-items-list');
-      itemsList.innerHTML = order.items.map(i => `
+      document.getElementById('r-items-list').innerHTML = cart.map(i => `
         <div class="flex justify-between">
           <span>${i.qty}x ${i.name}</span>
           <span>$${(i.price * i.qty).toLocaleString()}</span>
@@ -1951,6 +1824,10 @@
       `).join('');
 
       document.getElementById('receipt-modal').classList.remove('hidden');
+
+      cart = [];
+      renderCart();
+      refreshAllViews();
     }
 
     function closeReceipt() {
@@ -1966,8 +1843,8 @@
         <tr class="hover:bg-neutral-950/40 transition">
           <td class="p-3 font-mono text-gray-400">${p.id}</td>
           <td class="p-3 font-bold text-white">${p.name}</td>
-          <td class="p-3 font-black ${p.stock < p.min ? 'text-orange-400' : 'text-emerald-400'}">${p.stock} un.</td>
-          <td class="p-3 text-gray-400">${p.min} un.</td>
+          <td class="p-3 font-black ${p.stock < p.min ? 'text-orange-400' : 'text-emerald-400'}">${p.stock}</td>
+          <td class="p-3 text-gray-400">${p.min}</td>
           <td class="p-3">
             <span class="px-2 py-0.5 text-[10px] rounded font-bold ${p.stock < p.min ? 'bg-orange-950 text-orange-400 border border-orange-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}">
               ${p.stock < p.min ? '🔴 Baixo' : '🟢 Normal'}
@@ -1975,19 +1852,20 @@
           </td>
           <td class="p-3 text-center">
             <div class="flex items-center justify-center gap-1">
-              <button onclick="adjustStock('${p.id}', -5)" class="px-2 py-0.5 bg-neutral-800 text-orange-400 rounded font-bold">-5</button>
-              <button onclick="adjustStock('${p.id}', 10)" class="px-2 py-0.5 bg-neutral-800 text-emerald-400 rounded font-bold">+10</button>
-              <button onclick="adjustStock('${p.id}', 50)" class="px-2 py-0.5 bg-neutral-800 text-emerald-400 rounded font-bold">+50</button>
+              <button onclick="updateStock('${p.id}', -5)" class="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-red-400 rounded text-xs font-bold">-5</button>
+              <button onclick="updateStock('${p.id}', -1)" class="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-red-400 rounded text-xs font-bold">-1</button>
+              <button onclick="updateStock('${p.id}', 1)" class="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 rounded text-xs font-bold">+1</button>
+              <button onclick="updateStock('${p.id}', 10)" class="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 rounded text-xs font-bold">+10</button>
             </div>
           </td>
         </tr>
       `).join('');
     }
 
-    function adjustStock(productId, amount) {
+    function updateStock(productId, delta) {
       const prod = products.find(p => p.id === productId);
       if (!prod) return;
-      prod.stock += amount;
+      prod.stock += delta;
       if (prod.stock < 0) prod.stock = 0;
       saveToLocalStorage();
       renderStock();
@@ -1996,36 +1874,37 @@
       updateDashboard();
     }
 
+    function renderTeam() {
+      const tbody = document.getElementById('team-table-body');
+      if (!tbody) return;
+
+      tbody.innerHTML = teamMembers.map(m => {
+        let memberOrders = orders.filter(o => o.seller.toLowerCase().includes(m.name.toLowerCase()) && o.status !== 'Anulado');
+        let totalSales = memberOrders.length;
+        let totalRevenue = memberOrders.reduce((acc, o) => acc + o.total, 0);
+        let commission = totalRevenue * 0.15;
+
+        return `
+          <tr class="hover:bg-neutral-950/40 transition">
+            <td class="p-3 font-bold text-white">${m.name}</td>
+            <td class="p-3 text-gray-400">${m.role}</td>
+            <td class="p-3 text-center font-bold text-orange-400">${totalSales}</td>
+            <td class="p-3 font-black text-emerald-400">$${commission.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
     function updateDashboard() {
-      let totalFat = 0;
-      let totalPago = 0;
-      let totalPendente = 0;
-      let stockAlerts = 0;
+      let totalFat = orders.filter(o => o.status !== 'Anulado').reduce((acc, o) => acc + o.total, 0);
+      let totalPago = orders.filter(o => o.status === 'Pago' || o.status === 'Concluído').reduce((acc, o) => acc + o.total, 0);
+      let totalPendente = orders.filter(o => o.status === 'Pendente' || o.status === 'Em Confecção').reduce((acc, o) => acc + o.total, 0);
+      let stockAlerts = products.filter(p => p.stock < p.min).length;
 
-      orders.forEach(o => {
-        if (o.status !== 'Anulado') {
-          totalFat += o.total;
-          if (o.status === 'Pago' || o.status === 'Concluído') {
-            totalPago += o.total;
-          } else {
-            totalPendente += o.total;
-          }
-        }
-      });
-
-      products.forEach(p => {
-        if (p.stock < p.min) stockAlerts++;
-      });
-
-      const fatEl = document.getElementById('dash-total-fat');
-      const pagoEl = document.getElementById('dash-total-pago');
-      const pendEl = document.getElementById('dash-total-pendente');
-      const alertEl = document.getElementById('dash-stock-alert');
-
-      if (fatEl) fatEl.innerText = '$' + totalFat.toLocaleString();
-      if (pagoEl) pagoEl.innerText = '$' + totalPago.toLocaleString();
-      if (pendEl) pendEl.innerText = '$' + totalPendente.toLocaleString();
-      if (alertEl) alertEl.innerText = stockAlerts + ' Itens';
+      document.getElementById('dash-total-fat').innerText = '$' + totalFat.toLocaleString();
+      document.getElementById('dash-total-pago').innerText = '$' + totalPago.toLocaleString();
+      document.getElementById('dash-total-pendente').innerText = '$' + totalPendente.toLocaleString();
+      document.getElementById('dash-stock-alert').innerText = stockAlerts + ' Itens';
     }
 
     function renderRanking() {
@@ -2034,41 +1913,33 @@
 
       let clientMap = {};
       orders.forEach(o => {
-        if (o.status !== 'Anulado') {
-          if (!clientMap[o.client]) {
-            clientMap[o.client] = { ordersCount: 0, totalSpent: 0 };
-          }
-          clientMap[o.client].ordersCount += 1;
-          clientMap[o.client].totalSpent += o.total;
+        if (o.status === 'Anulado') return;
+        if (!clientMap[o.client]) {
+          clientMap[o.client] = { count: 0, total: 0 };
         }
+        clientMap[o.client].count += 1;
+        clientMap[o.client].total += o.total;
       });
 
       let sortedClients = Object.keys(clientMap).map(client => ({
-        name: client,
-        ordersCount: clientMap[client].ordersCount,
-        totalSpent: clientMap[client].totalSpent
-      })).sort((a, b) => b.totalSpent - a.totalSpent);
+        client,
+        count: clientMap[client].count,
+        total: clientMap[client].total
+      })).sort((a, b) => b.total - a.total);
 
       if (sortedClients.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-500">Nenhum dado de ranking disponível.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Sem dados para ranking.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = sortedClients.map((c, index) => {
-        let medal = `#${index + 1}`;
-        if (index === 0) medal = '🥇 1º';
-        if (index === 1) medal = '🥈 2º';
-        if (index === 2) medal = '🥉 3º';
-
-        return `
-          <tr class="hover:bg-neutral-950/40 transition">
-            <td class="p-4 text-center font-bold text-amber-400">${medal}</td>
-            <td class="p-4 font-bold text-white">${c.name}</td>
-            <td class="p-4 text-center text-gray-300">${c.ordersCount} pedidos</td>
-            <td class="p-4 font-black text-orange-400">$${c.totalSpent.toLocaleString()}</td>
-          </tr>
-        `;
-      }).join('');
+      tbody.innerHTML = sortedClients.map((c, index) => `
+        <tr class="hover:bg-neutral-950/40 transition">
+          <td class="p-4 text-center font-black text-orange-400">${index + 1}º</td>
+          <td class="p-4 font-bold text-white">${c.client}</td>
+          <td class="p-4 text-center text-gray-300">${c.count}</td>
+          <td class="p-4 font-black text-emerald-400">$${c.total.toLocaleString()}</td>
+        </tr>
+      `).join('');
     }
 
     function renderSellersRanking() {
@@ -2077,42 +1948,34 @@
 
       let sellerMap = {};
       orders.forEach(o => {
-        if (o.status !== 'Anulado') {
-          let cleanSeller = o.seller.split('(')[0].trim();
-          if (!sellerMap[cleanSeller]) {
-            sellerMap[cleanSeller] = { salesCount: 0, totalEarned: 0 };
-          }
-          sellerMap[cleanSeller].salesCount += 1;
-          sellerMap[cleanSeller].totalEarned += o.total;
+        if (o.status === 'Anulado') return;
+        let sellerName = o.seller.split(' ')[0];
+        if (!sellerMap[sellerName]) {
+          sellerMap[sellerName] = { count: 0, total: 0 };
         }
+        sellerMap[sellerName].count += 1;
+        sellerMap[sellerName].total += o.total;
       });
 
       let sortedSellers = Object.keys(sellerMap).map(seller => ({
-        name: seller,
-        salesCount: sellerMap[seller].salesCount,
-        totalEarned: sellerMap[seller].totalEarned
-      })).sort((a, b) => b.totalEarned - a.totalEarned);
+        seller,
+        count: sellerMap[seller].count,
+        total: sellerMap[seller].total
+      })).sort((a, b) => b.total - a.total);
 
       if (sortedSellers.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-500">Nenhum dado de vendedores disponível.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500">Sem dados para ranking de vendedores.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = sortedSellers.map((s, index) => {
-        let medal = `#${index + 1}`;
-        if (index === 0) medal = '🥇 1º';
-        if (index === 1) medal = '🥈 2º';
-        if (index === 2) medal = '🥉 3º';
-
-        return `
-          <tr class="hover:bg-neutral-950/40 transition">
-            <td class="p-4 text-center font-bold text-amber-400">${medal}</td>
-            <td class="p-4 font-bold text-white">${s.name}</td>
-            <td class="p-4 text-center text-gray-300">${s.salesCount} vendas</td>
-            <td class="p-4 font-black text-orange-400">$${s.totalEarned.toLocaleString()}</td>
-          </tr>
-        `;
-      }).join('');
+      tbody.innerHTML = sortedSellers.map((s, index) => `
+        <tr class="hover:bg-neutral-950/40 transition">
+          <td class="p-4 text-center font-black text-orange-400">${index + 1}º</td>
+          <td class="p-4 font-bold text-white">${s.seller}</td>
+          <td class="p-4 text-center text-gray-300">${s.count}</td>
+          <td class="p-4 font-black text-emerald-400">$${s.total.toLocaleString()}</td>
+        </tr>
+      `).join('');
     }
 
     function renderMemberOrders() {
@@ -2148,34 +2011,6 @@
             <td class="p-3 text-gray-400 truncate max-w-xs" title="${itemsSummary}">${itemsSummary}</td>
             <td class="p-3 font-black text-orange-400">$${o.total.toLocaleString()}</td>
             <td class="p-3"><span class="px-2 py-0.5 text-[10px] rounded font-bold ${badgeClass}">${o.status}</span></td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function renderTeam() {
-      const tbody = document.getElementById('team-table-body');
-      if (!tbody) return;
-
-      let sellerMap = {};
-      orders.forEach(o => {
-        if (o.status !== 'Anulado') {
-          let cleanSeller = o.seller.split('(')[0].trim();
-          if (!sellerMap[cleanSeller]) sellerMap[cleanSeller] = 0;
-          sellerMap[cleanSeller] += o.total;
-        }
-      });
-
-      tbody.innerHTML = teamMembers.map(m => {
-        let totalSales = sellerMap[m.name] || 0;
-        let commission = totalSales * 0.15;
-
-        return `
-          <tr class="hover:bg-neutral-950/40 transition">
-            <td class="p-3 font-bold text-white">${m.name}</td>
-            <td class="p-3 text-gray-400">${m.role}</td>
-            <td class="p-3 font-black text-orange-400">$${totalSales.toLocaleString()}</td>
-            <td class="p-3 font-black text-emerald-400">$${commission.toLocaleString()}</td>
           </tr>
         `;
       }).join('');
