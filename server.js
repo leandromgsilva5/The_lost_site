@@ -11,23 +11,18 @@ const io = new Server(server, {
   }
 });
 
-// Servir ficheiros estáticos na mesma pasta (index.html, etc.)
+// Servir ficheiros estáticos (opcional, caso queiras colocar o HTML/JS na mesma pasta)
 app.use(express.static(__dirname));
 
 io.on('connection', (socket) => {
   console.log(`Novo cliente conectado: ${socket.id}`);
 
-  // Recebe uma nova encomenda ou alteração de estado enviada por um utilizador
-  socket.on('nova_encomenda', (orders) => {
-    console.log(`Encomendas atualizadas sincronizadas.`);
-    // Transmite instantaneamente para todos os outros clientes ligados (ex: gerência, membros)
-    socket.broadcast.emit('atualizar_encomendas', orders);
-  });
-
-  // Sincronização direta de alterações de stock no baú em tempo real
-  socket.on('atualizar_stock', (products) => {
-    console.log(`Stock atualizado no armazém.`);
-    socket.broadcast.emit('atualizar_stock', products);
+  // Recebe uma nova encomenda enviada por um cliente/vendedor
+  socket.on('nova_encomenda', (order) => {
+    console.log(`Nova encomenda gerada: ${order.id}`);
+    
+    // Transmite a nova encomenda instantaneamente para todos os outros clientes (ex: painel do gerente)
+    socket.broadcast.emit('atualizar_encomendas', order);
   });
 
   socket.on('disconnect', () => {
