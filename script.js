@@ -19,7 +19,7 @@ function saveToLocalStorage() {
 }
 
 // --- 2. LIGAR AO SERVIDOR SOCKET.IO ---
-const socket = io('http://localhost:3000'); 
+const socket = io();
 
 // --- 3. OUVIR NOVAS ENCOMENDAS EM TEMPO REAL ---
 socket.on('atualizar_encomendas', (newOrder) => {
