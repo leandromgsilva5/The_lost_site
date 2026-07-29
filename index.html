@@ -8,6 +8,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Socket.io Client -->
+  <script src="/socket.io/socket.io.js"></script>
   <!-- JSZip & FileSaver para download do ZIP no navegador -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -53,6 +55,11 @@
 
       <!-- CONTROLO DE SESSÃO -->
       <div class="flex items-center gap-3">
+        <!-- Indicador de Ligação Tempo Real -->
+        <span id="socket-status-badge" class="text-[11px] px-2.5 py-1 rounded bg-neutral-900 text-red-400 font-medium border border-neutral-800 flex items-center gap-1.5" title="Estado da ligação em tempo real">
+          <i class="fa-solid fa-circle text-[8px]"></i> <span id="socket-text">A ligar...</span>
+        </span>
+
         <span id="auth-status-badge" class="text-xs px-3 py-1.5 rounded bg-neutral-800 text-gray-300 font-medium border border-neutral-700 flex items-center gap-2">
           <i class="fa-solid fa-user-shield text-gray-400"></i> Visitante / Cliente
         </span>
@@ -402,7 +409,7 @@
           <h2 class="text-2xl font-bold text-white mt-1 flex items-center gap-2">
             <i class="fa-solid fa-clipboard-check text-amber-400"></i> Validação & Acompanhamento de Encomendas
           </h2>
-          <p class="text-sm text-gray-400 mt-1">Atualiza automaticamente entre computadores/abas[cite: 7]. Valida o progresso e marca as encomendas como concluídas[cite: 7].</p>
+          <p class="text-sm text-gray-400 mt-1">Atualiza automaticamente entre computadores e abas em tempo real. Valida o progresso e marca as encomendas.</p>
         </div>
         <div class="bg-neutral-950 px-4 py-3 rounded-lg border border-neutral-800 flex items-center gap-3">
           <button onclick="loadFromLocalStorage()" class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 rounded text-xs font-bold border border-neutral-700 flex items-center gap-1.5">
@@ -414,7 +421,7 @@
       <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden shadow-xl">
         <div class="p-4 bg-neutral-950 font-bold text-white border-b border-neutral-800 flex justify-between items-center">
           <span class="flex items-center gap-2 text-amber-400"><i class="fa-solid fa-list-check"></i> Encomendas Ativas & Validação</span>
-          <span class="text-xs text-gray-400 font-normal">Sincronizado em tempo real</span>
+          <span class="text-xs text-gray-400 font-normal">Sincronizado por WebSockets</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
@@ -520,7 +527,7 @@
           <h2 class="text-2xl font-bold text-white mt-1 flex items-center gap-2">
             <i class="fa-solid fa-users-gear text-amber-400"></i> Portal de Membros — The Lost MC
           </h2>
-          <p class="text-sm text-gray-400 mt-1">Acesso reservado aos membros da organização para consulta de encomendas, hierarquia oficial e stock atual[cite: 7].</p>
+          <p class="text-sm text-gray-400 mt-1">Acesso reservado aos membros da organização para consulta de encomendas, hierarquia oficial e stock atual.</p>
         </div>
         <div class="bg-neutral-950 px-4 py-3 rounded-lg border border-neutral-800 flex items-center gap-3">
           <i class="fa-solid fa-shield-halved text-amber-500 text-xl"></i>
@@ -570,7 +577,7 @@
       <!-- SEÇÃO EXCLUSIVA DE CONSULTA DE STOCK PARA MEMBROS -->
       <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden shadow-xl mt-6">
         <div class="p-4 bg-neutral-950 font-bold text-white border-b border-neutral-800 flex justify-between items-center">
-          <span class="flex items-center gap-2 text-amber-400"><i class="fa-solid fa-boxes-stacked"></i> 📦 Consulta de Stock do Baú da Organização (Apenas Leitura)[cite: 7]</span>
+          <span class="flex items-center gap-2 text-amber-400"><i class="fa-solid fa-boxes-stacked"></i> 📦 Consulta de Stock do Baú da Organização (Apenas Leitura)</span>
           <span class="text-xs text-gray-400 font-normal">Atualizado em tempo real pelo armazém</span>
         </div>
         <table class="w-full text-left text-sm">
@@ -634,8 +641,8 @@
       <!-- MÓDULO: ANULAR ENCOMENDAS -->
       <div id="gerencia-mod-encomendas" class="hidden bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
         <div class="p-4 bg-neutral-950 font-bold text-white border-b border-neutral-800 flex justify-between items-center">
-          <span class="flex items-center gap-2 text-orange-400"><i class="fa-solid fa-ban"></i> Gestão e Anulação de Encomendas[cite: 7]</span>
-          <span class="text-xs text-gray-400 font-normal">Anular uma encomenda repõe os itens no stock automaticamente[cite: 7]</span>
+          <span class="flex items-center gap-2 text-orange-400"><i class="fa-solid fa-ban"></i> Gestão e Anulação de Encomendas</span>
+          <span class="text-xs text-gray-400 font-normal">Anular uma encomenda repõe os itens no stock automaticamente</span>
         </div>
         <table class="w-full text-left text-sm">
           <thead class="bg-neutral-950/60 text-gray-400 uppercase text-xs border-b border-neutral-800">
@@ -855,6 +862,41 @@
   </div>
 
   <script>
+    // Conexão Socket.io em tempo real
+    const socket = io();
+
+    socket.on('connect', () => {
+      const badge = document.getElementById('socket-status-badge');
+      const text = document.getElementById('socket-text');
+      if(badge && text) {
+        badge.className = "text-[11px] px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800 flex items-center gap-1.5";
+        text.innerText = "Ligado em Tempo Real";
+      }
+    });
+
+    socket.on('disconnect', () => {
+      const badge = document.getElementById('socket-status-badge');
+      const text = document.getElementById('socket-text');
+      if(badge && text) {
+        badge.className = "text-[11px] px-2.5 py-1 rounded bg-red-950 text-red-400 font-medium border border-red-800 flex items-center gap-1.5";
+        text.innerText = "Desligado";
+      }
+    });
+
+    // Receber novas encomendas via socket enviadas por outros utilizadores/abas
+    socket.on('atualizar_encomendas', (updatedOrders) => {
+      orders = updatedOrders;
+      saveToLocalStorage(false);
+      refreshAllViews();
+    });
+
+    // Receber atualizações diretas de stock global
+    socket.on('atualizar_stock', (updatedProducts) => {
+      products = updatedProducts;
+      saveToLocalStorage(false);
+      refreshAllViews();
+    });
+
     const ADMIN_PIN = "1948";
     const MEMBER_PIN = "lost1948"; 
     let isAdmin = false;
@@ -917,11 +959,16 @@
       { id: 'ENC-782194', date: '28/07/2026 15:30', client: 'Família Vagos', seller: 'Leandromg052 (Chefe / Presidente)', isPartnership: true, items: [{ name: 'Colete Pesado', qty: 10, price: 20000 }], total: 200000, status: 'Pendente' }
     ];
 
-    // --- SINCRONIZAÇÃO LOCALSTORAGE ---
-    function saveToLocalStorage() {
+    // --- SINCRONIZAÇÃO LOCALSTORAGE & SOCKET ---
+    function saveToLocalStorage(emitSocket = true) {
       localStorage.setItem('lostmc_orders', JSON.stringify(orders));
       localStorage.setItem('lostmc_products', JSON.stringify(products));
       localStorage.setItem('lostmc_treasury', JSON.stringify(treasuryTransactions));
+
+      if(emitSocket) {
+        socket.emit('nova_encomenda', orders);
+        socket.emit('atualizar_stock', products);
+      }
     }
 
     function loadFromLocalStorage() {
@@ -1073,7 +1120,7 @@
       if (!order) return;
       
       order.status = newStatus;
-      saveToLocalStorage();
+      saveToLocalStorage(true);
       refreshAllViews();
     }
 
@@ -1147,7 +1194,7 @@
         });
 
         order.status = 'Anulado';
-        saveToLocalStorage();
+        saveToLocalStorage(true);
         refreshAllViews();
         alert(`Encomenda ${orderId} anulada com sucesso e stock reposto!`);
       }
@@ -1213,14 +1260,14 @@
       treasuryTransactions.unshift(newTx);
       document.getElementById('t-desc').value = '';
       document.getElementById('t-amount').value = '';
-      saveToLocalStorage();
+      saveToLocalStorage(true);
       renderTreasury();
     }
 
     function deleteTreasuryTransaction(id) {
       if(confirm('Tem certeza que deseja apagar este registo do extrato?')) {
         treasuryTransactions = treasuryTransactions.filter(t => t.id !== id);
-        saveToLocalStorage();
+        saveToLocalStorage(true);
         renderTreasury();
       }
     }
@@ -1273,7 +1320,7 @@
       if(prod) {
         prod.stock += amount;
         if(prod.stock < 0) prod.stock = 0;
-        saveToLocalStorage();
+        saveToLocalStorage(true);
         refreshAllViews();
       }
     }
@@ -1289,7 +1336,7 @@
       const prod = products.find(p => p.id === id);
       if(prod) {
         prod.stock = val;
-        saveToLocalStorage();
+        saveToLocalStorage(true);
         refreshAllViews();
         alert(`Stock de "${prod.name}" atualizado manualmente para ${val} unidades.`);
       }
@@ -1628,7 +1675,7 @@
         });
       }
 
-      saveToLocalStorage();
+      saveToLocalStorage(true);
       refreshAllViews();
       showReceipt(order);
     }
@@ -1649,7 +1696,7 @@
     function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
 
     function renderMemberOrders() {
-      const search = document.getElementById('member-order-search') ? document.getElementById('member-order-search').value.toLowerCase() : '';
+      const search = document.getElementById('member-order-search') ? document.getElementById('member-order-search'].value.toLowerCase() : '';
       const filtered = orders.filter(o => o.client.toLowerCase().includes(search) || o.id.toLowerCase().includes(search));
       const tbody = document.getElementById('member-orders-tbody');
       if(!tbody) return;
